@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<file:config name="File_Config" doc:name="File Config" doc:id="dc5defda-2b3a-49b3-a9d7-47235c06d6a8" >
+		<file:connection workingDir="C:\LearnMuleRepo\input"/>
+	</file:config>
+	<flow name="batch-job-sampleFlow" doc:id="860873aa-1733-4859-9e11-3ddfccc45f19">
+		<file:listener doc:name="On New or Updated File" doc:id="82ec3639-784c-47a3-848b-80f62c919153" config-ref="File_Config" autoDelete="true">
+			<scheduling-strategy>
+				<fixed-frequency />
+			</scheduling-strategy>
+		</file:listener>
+		<batch:job jobName="batch-job-sample_Batch_Job" doc:id="254c21fb-454e-47ee-8af2-cacb0adb196d" maxFailedRecords="-1">
+			<batch:process-records >
+				<batch:step name="Batch_Step_Process" doc:id="4f168d08-c5b8-4a6e-b005-529d33994c24">
+					<batch:aggregator doc:name="Batch Aggregator_DB_Insert" doc:id="fdac030e-9ad0-4961-8730-8dccfcafdc17" size="5">
+						<ee:transform doc:name="Transform Message to DB insert" doc:id="70140336-c649-4294-b69d-f99800fa5fca">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="Insert 10 records in DB" doc:id="dc68eac9-babf-4f01-a3de-647f30ed68bb" message="insert into DB  #[payload]" />
+					</batch:aggregator>
+					<choice doc:name="Choice" doc:id="b1f9a301-ccc8-4441-bcba-abf82b9dcc8b">
+						<when expression='#[(payload[0].Region write "text/plain") == "Europe"]'>
+							<raise-error doc:name="Raise error" doc:id="4e4e2f36-4a42-479f-bc13-d295b3d5c8ea" type="MY:EXCEPTION" description="Raising error in case region is Europe" />
+						</when>
+						<otherwise>
+							<logger level="INFO" doc:name="Processing Records" doc:id="6430fbdc-e76d-4277-9d70-ec2f1570a56f" message="processing #[payload]" />
+						</otherwise>
+					</choice>
+				</batch:step>
+				<batch:step name="Batch_Step_Failed_Records" doc:id="8280611a-b96b-4cdf-923b-bc9f8c133fc8" acceptPolicy="ONLY_FAILURES">
+					<logger level="INFO" doc:name="Failed Record" doc:id="e783a87b-5894-46e3-aa84-81d16c4f74db" message="failed record found #[payload]" />
+					<batch:aggregator doc:name="Batch Aggregator Send Email" doc:id="a785404d-f3ca-463f-8b9c-b9e284152b3f" streaming="true">
+						<ee:transform doc:name="Transform Message to send email" doc:id="5b156f02-297a-4523-a1ad-34bf11317a75">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="Send Email containing all failed records" doc:id="a6420bdf-89c3-43d5-9c02-537e14420e7a" message="sending email for records #[payload]" />
+					</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Send the Report" doc:id="8cf9f91f-48e4-47d0-a6f3-19b85b367cbe" message='summary report - #[payload write "application/json"]' />
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>
